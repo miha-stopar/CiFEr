@@ -25,28 +25,39 @@
  * along with this program.  If not, see <https://www.gnu.org/licenses/>.
  */
 
-#ifndef CIFER_TEST_H
-#define CIFER_TEST_H
+#ifndef CIFER_SGP_H
+#define CIFER_SGP_H
 
-#include <munit.h>
+#include "data/vec.h"
+#include "internal/errors.h"
 
-MunitSuite prime_suite;
-MunitSuite keygen_suite;
-MunitSuite matrix_suite;
-MunitSuite vector_suite;
-MunitSuite dlog_suite;
-MunitSuite uniform_suite;
-MunitSuite normal_cumulative_suite;
-MunitSuite normal_negative_suite;
-MunitSuite normal_double_suite;
-MunitSuite ddh_suite;
-MunitSuite damgard_suite;
-MunitSuite ddh_multi_suite;
-MunitSuite damgard_multi_suite;
-MunitSuite lwe_suite;
-MunitSuite lwe_fully_secure_suite;
-MunitSuite ring_lwe_suite;
-MunitSuite paillier_suite;
-MunitSuite sgp_suite;
+/**
+ * \file
+ * \ingroup simple
+ * \brief SGP scheme.
+ */
+
+/**
+ * cfe_sgp represents a scheme for quadratic multi-variate polynomials
+// based on  Sans, Gay and Pointcheval:
+// "Reading in the Dark: Classifying Encrypted Digits with
+// Functional Encryption".
+ */
+typedef struct cfe_sgp {
+    size_t n;
+    mpz_t bound;
+} cfe_sgp;
+
+cfe_error cfe_sgp_init(cfe_sgp *s, size_t n, mpz_t bound);
+
+/**
+ * cfe_sgp_sec_key represents a secret key for SGP scheme.
+ */
+typedef struct cfe_sgp_sec_key {
+    cfe_vec *s;
+    cfe_vec *t;
+} cfe_sgp_sec_key;
+
+void cfe_sgp_generate_master_key(cfe_sgp_sec_key *msk, cfe_sgp *s);
 
 #endif

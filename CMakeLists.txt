@@ -42,12 +42,16 @@ set(library_SOURCES
         src/sample/normal_double.c
         src/sample/normal_negative.c
         src/sample/uniform.c
+        src/quadratic/sgp.c
         )
+
+# TODO
+include_directories(/home/miha/projects/amcl/version3/c)
 
 add_library(cifer SHARED ${library_SOURCES})
 
 # Link libraries that are used in our library
-target_link_libraries(cifer gmp sodium m)
+target_link_libraries(cifer gmp sodium m ${CMAKE_SOURCE_DIR}/lib/amcl.a)
 
 # Install library and copy header to install dir
 install(TARGETS cifer DESTINATION lib)
@@ -73,6 +77,7 @@ set(binary_SOURCES
         test/sample/normal_double.c
         test/sample/normal_negative.c
         test/sample/uniform.c
+        test/quadratic/sgp.c
         external/munit/munit.c
         )
 

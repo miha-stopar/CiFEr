@@ -31,6 +31,8 @@
 #include "data/vec.h"
 #include "internal/errors.h"
 
+#include <pair_BN254.h>
+
 /**
  * \file
  * \ingroup simple
@@ -46,6 +48,8 @@
 typedef struct cfe_sgp {
     size_t n;
     mpz_t bound;
+    mpz_t mod;
+    BIG_256_56 modBig;
 } cfe_sgp;
 
 cfe_error cfe_sgp_init(cfe_sgp *s, size_t n, mpz_t bound);
@@ -59,5 +63,7 @@ typedef struct cfe_sgp_sec_key {
 } cfe_sgp_sec_key;
 
 void cfe_sgp_generate_master_key(cfe_sgp_sec_key *msk, cfe_sgp *s);
+
+cfe_error cfe_sgp_encrypt(cfe_vec *ciphertext, cfe_sgp *s, cfe_vec *x, cfe_vec *y, cfe_sgp_sec_key *msk);
 
 #endif

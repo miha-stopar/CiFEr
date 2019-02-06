@@ -26,6 +26,7 @@ set(library_SOURCES
         src/data/vec.c
         src/data/vec_float.c
         src/internal/common.c
+        src/internal/converter.c
         src/internal/dlog.c
         src/internal/keygen.c
         src/internal/prime.c

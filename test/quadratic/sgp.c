@@ -96,6 +96,9 @@ MunitResult test_sgp_end_to_end(const MunitParameter *params, void *data) {
     cfe_uniform_sample_vec(&x, s.bound);
     cfe_uniform_sample_vec(&y, s.bound);
 
+    cfe_vec ciphertext;
+    cfe_vec_init(&ciphertext, s.n);
+    cfe_sgp_encrypt(&ciphertext, &s, &x, &y, &msk);
 
     munit_assert(err == 0);
 

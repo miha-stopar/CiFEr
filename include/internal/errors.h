@@ -55,6 +55,8 @@ typedef enum cfe_error {
 
     CFE_ERR_PRECONDITION_FAILED,
 
+    CFE_ERR_NO_INVERSE,
+
 } cfe_error;
 
 #endif

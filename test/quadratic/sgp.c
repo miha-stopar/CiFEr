@@ -80,7 +80,7 @@ MunitResult test_sgp_end_to_end(const MunitParameter *params, void *data) {
     cfe_mat f;
     cfe_mat_init(&f, n, n);
     cfe_uniform_sample_mat(&f, b);
-    cfe_mat_free(&f);
+    //cfe_mat_free(&f);
 
     int err = 1;
 
@@ -88,7 +88,11 @@ MunitResult test_sgp_end_to_end(const MunitParameter *params, void *data) {
     err = cfe_sgp_init(&s, n, b);
 
     cfe_sgp_sec_key msk;
+
+
     cfe_sgp_generate_master_key(&msk, &s);
+
+    cfe_vec_print(msk.s);
 
     cfe_vec x, y;
     cfe_vec_inits(s.n, &x, &y, NULL);
@@ -96,9 +100,11 @@ MunitResult test_sgp_end_to_end(const MunitParameter *params, void *data) {
     cfe_uniform_sample_vec(&x, s.bound);
     cfe_uniform_sample_vec(&y, s.bound);
 
-    cfe_vec ciphertext;
-    cfe_vec_init(&ciphertext, s.n);
+    cfe_sgp_cipher ciphertext;
+    cfe_sgp_cipher_init(&ciphertext, &s);
     cfe_sgp_encrypt(&ciphertext, &s, &x, &y, &msk);
+
+    cfe_sgp_derive_key(&msk, &f);
 
     munit_assert(err == 0);
 

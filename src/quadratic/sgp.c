@@ -33,6 +33,7 @@
 #include "internal/keygen.h"
 #include "internal/dlog.h"
 #include "sample/uniform.h"
+#include "data/vec_curve.h"
 
 #include <big_256_56.h>
 
@@ -76,14 +77,24 @@ cfe_error cfe_sgp_init(cfe_sgp *s, size_t n, mpz_t bound) {
     return err;
 }
 
+void cfe_sgp_cipher_init(cfe_sgp_cipher *cipher, cfe_sgp *s) {
+    ECP_BN254_generator(&(cipher->g1MulGamma));
+    cipher->a = (cfe_vec_G1 *) cfe_malloc(s->n * sizeof(cfe_vec_G1));
+    cipher->b = (cfe_vec_G2 *) cfe_malloc(s->n * sizeof(cfe_vec_G2));
+}
+
 // msk should be uninitialized!
 void cfe_sgp_generate_master_key(cfe_sgp_sec_key *msk, cfe_sgp *sgp) {
-    cfe_vec s, t;
-    cfe_vec_inits(sgp->n, &s, &t, NULL);
-    msk->s = &s;
-    msk->t = &t;
+    msk->s = (cfe_vec *) cfe_malloc(sizeof(cfe_vec));
+    msk->t = (cfe_vec *) cfe_malloc(sizeof(cfe_vec));
+
+    cfe_vec_inits(sgp->n, msk->s, msk->t, NULL);
+    cfe_vec_print(msk->s);
+
     cfe_uniform_sample_vec(msk->s, sgp->bound);
     cfe_uniform_sample_vec(msk->t, sgp->bound);
+
+    cfe_vec_print(msk->s);
 }
 
 // cfe_extract_submatrix returns a matrix obtained from m by removing row i and column j.
@@ -200,7 +211,7 @@ cfe_error cfe_inverse_mod(cfe_mat *m, cfe_mat *inverse_mat, mpz_t mod) {
     return 0;
 }
 
-cfe_error cfe_sgp_encrypt(cfe_vec *ciphertext, cfe_sgp *s, cfe_vec *x, cfe_vec *y, cfe_sgp_sec_key *msk) {
+cfe_error cfe_sgp_encrypt(cfe_sgp_cipher *ciphertext, cfe_sgp *s, cfe_vec *x, cfe_vec *y, cfe_sgp_sec_key *msk) {
     mpz_t gamma;
     mpz_init(gamma);
     cfe_uniform_sample(gamma, s->mod);
@@ -209,40 +220,79 @@ cfe_error cfe_sgp_encrypt(cfe_vec *ciphertext, cfe_sgp *s, cfe_vec *x, cfe_vec *
     cfe_mat_init(&W, 2, 2);
     cfe_uniform_sample_mat(&W, s->mod);
 
-    cfe_mat E;
-    cfe_mat_init(&E, 3, 3);
-    mpz_t foo;
-    mpz_init_set_ui(foo, 11);
-    cfe_uniform_sample_mat(&E, foo);
-    cfe_mat_print(&E);
+    //gmp_printf ("tra %Zd\n", det);
 
-    mpz_t det;
-    mpz_init(det);
-    cfe_determinant(&E, det);
-    gmp_printf ("tra %Zd\n", det);
-
-    cfe_mat inverse_mat;
-    cfe_mat_init(&inverse_mat, E.rows, E.cols);
-    //cfe_inverse_mod(&E, &inverse_mat, s->mod);
-
-    mpz_t mod;
-    mpz_init_set_ui(mod, 7);
-    cfe_inverse_mod(&E, &inverse_mat, mod);
-
-    cfe_mat_print(&inverse_mat);
+    cfe_mat W_inv;
+    cfe_mat_init(&W_inv, W.rows, W.cols);
+    cfe_inverse_mod(&W, &W_inv, s->mod);
+    cfe_mat_print(&W_inv);
 
     cfe_mat check;
-    cfe_mat_init(&check, E.rows, E.cols);
-    cfe_mat_mul(&check, &E, &inverse_mat);
+    cfe_mat_init(&check, W.rows, W.cols);
+    cfe_mat_mul(&check, &W, &W_inv);
 
     cfe_mat check_mod;
-    cfe_mat_init(&check_mod, E.rows, E.cols);
+    cfe_mat_init(&check_mod, W.rows, W.cols);
 
-    cfe_mat_mod(&check_mod, &check, mod);
+    cfe_mat_mod(&check_mod, &check, s->mod);
 
     cfe_mat_print(&check_mod);
 
+    cfe_mat W_inv_tr;
+    cfe_mat_init(&W_inv_tr, 2, 2);
+    cfe_mat_transpose(&W_inv_tr, &W_inv);
+
+    mpz_t x_i, y_i, s_i, t_i, tmp;
+    mpz_inits(x_i, y_i, s_i, t_i, tmp, NULL);
+    cfe_vec v;
+    cfe_vec_init(&v, 2);
+
+    cfe_vec v_i;
+    cfe_vec_init(&v_i, 2);
+
+    mpz_t minus;
+    mpz_init_set_si(minus, -1);
+
+    for (int i = 0; i < s->n; i++) {
+        cfe_vec_get(x_i, x, i);
+        cfe_vec_get(s_i, msk->s, i);
+        mpz_mul(tmp, gamma, s_i);
+
+        cfe_vec_set(&v, x_i, 0);
+        cfe_vec_set(&v, tmp, 1);
+
+        cfe_mat_mul_vec(&v_i, &W_inv_tr, &v);
+        cfe_vec_mod(&v_i, &v_i, s->mod);
+
+        cfe_vec_G1 g1;
+        cfe_vec_G1_init(&g1, 2);
+        cfe_vec_mul_G1(&g1, &v_i);
+        ciphertext->a[i] = g1;
+
+
+        cfe_vec_get(y_i, y, i);
+        cfe_vec_get(t_i, msk->t, i);
+        mpz_mul(t_i, t_i, minus);
+        cfe_vec_set(&v, y_i, 0);
+        cfe_vec_set(&v, t_i, 1);
+
+        cfe_mat_mul_vec(&v_i, &W, &v);
+        cfe_vec_mod(&v_i, &v_i, s->mod);
+
+        cfe_vec_G2 g2;
+        cfe_vec_G2_init(&g2, 2);
+        cfe_vec_mul_G2(&g2, &v_i);
+        ciphertext->b[i] = g2;
+    }
+    BIG_256_56 gamma_b;
+    BIG_256_56_from_mpz(gamma_b, gamma);
+    ECP_BN254_mul(&(ciphertext->g1MulGamma), gamma_b);
 
     return 0;
 }
+
+void cfe_sgp_derive_key(cfe_sgp_sec_key *msk, cfe_mat *f) {
+
+}
+
 

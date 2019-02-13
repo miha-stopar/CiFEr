@@ -24,6 +24,7 @@ include_directories(
 set(library_SOURCES
         src/data/mat.c
         src/data/vec.c
+        src/data/vec_curve.c
         src/data/vec_float.c
         src/internal/common.c
         src/internal/converter.c

@@ -211,6 +211,70 @@ cfe_error cfe_inverse_mod(cfe_mat *m, cfe_mat *inverse_mat, mpz_t mod) {
     return 0;
 }
 
+void cfe_mat_mul_x_mat_y(mpz_t res, cfe_mat *mat, cfe_vec *x, cfe_vec *y) {
+    cfe_vec t;
+    cfe_vec_init(&t, x->size);
+    cfe_mat_mul_vec(&t, mat, y);
+    cfe_vec_dot(res, &t, x);
+}
+
+void cfe_sgp_derive_key(ECP2_BN254 *key, cfe_sgp_sec_key *msk, cfe_mat *f) {
+    mpz_t res;
+    mpz_init(res);
+
+    cfe_mat_mul_x_mat_y(res, f, msk->s, msk->t);
+
+    BIG_256_56 res_b;
+    BIG_256_56_from_mpz(res_b, res);
+
+    ECP2_BN254_generator(key);
+    ECP2_BN254_mul(key, res_b);
+
+}
+
+void cfe_sgp_decrypt(cfe_sgp_cipher *cipher, ECP2_BN254 *key, cfe_mat *f) {
+    FP12_BN254 prod;
+    PAIR_BN254_ate(&prod, &(cipher->g1MulGamma), key);
+    PAIR_BN254_fexp(&prod);
+
+    for (int i = 0; i < f->rows; i++) {
+        for (int j = 0; j < f->cols; j++) {
+            mpz_t el;
+            mpz_init(el);
+            cfe_mat_get(el, f, i, j);
+
+            if(mpz_cmp_ui(el, 0) != 0) {
+                ECP_BN254 t1, t3;
+                t1 = cipher->a[i].vec[0];
+                t3 = cipher->a[i].vec[1];
+                ECP2_BN254 t2, t4;
+                t2 = cipher->b[j].vec[0];
+                t4 = cipher->b[j].vec[1];
+
+                FP12_BN254 p1, p2, r;
+                PAIR_BN254_ate(&p1, &t1, &t2);
+                PAIR_BN254_fexp(&p1);
+                PAIR_BN254_ate(&p2, &t3, &t4);
+                PAIR_BN254_fexp(&p2);
+
+                FP12_BN254_mul(&p1, &p2); // p1 stores the multiplied value
+
+                BIG_256_56 el_b;
+                BIG_256_56_from_mpz(el_b, el);
+
+                // TODO: do we need to handle specially el which are < 0?
+                FP12_BN254_pow(&r, &p1, el_b);
+
+                FP12_BN254_mul(&prod, &r); // prod stores the multiplied value
+            }
+        }
+    }
+
+    FP12_BN254_output(&prod);
+
+    printf("\n-------------------\n");
+}
+
 cfe_error cfe_sgp_encrypt(cfe_sgp_cipher *ciphertext, cfe_sgp *s, cfe_vec *x, cfe_vec *y, cfe_sgp_sec_key *msk) {
     mpz_t gamma;
     mpz_init(gamma);
@@ -269,6 +333,8 @@ cfe_error cfe_sgp_encrypt(cfe_sgp_cipher *ciphertext, cfe_sgp *s, cfe_vec *x, cf
         cfe_vec_mul_G1(&g1, &v_i);
         ciphertext->a[i] = g1;
 
+        printf("\n----------------------\n");
+
 
         cfe_vec_get(y_i, y, i);
         cfe_vec_get(t_i, msk->t, i);
@@ -291,8 +357,5 @@ cfe_error cfe_sgp_encrypt(cfe_sgp_cipher *ciphertext, cfe_sgp *s, cfe_vec *x, cf
     return 0;
 }
 
-void cfe_sgp_derive_key(cfe_sgp_sec_key *msk, cfe_mat *f) {
-
-}
 
 

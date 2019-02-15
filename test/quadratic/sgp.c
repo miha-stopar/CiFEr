@@ -30,6 +30,8 @@
 #include "quadratic/sgp.h"
 #include "sample/uniform.h"
 
+#include <big_256_56.h>
+
 MunitResult test_sgp_end_to_end(const MunitParameter *params, void *data) {
     /*
     size_t l = 3;
@@ -76,7 +78,7 @@ MunitResult test_sgp_end_to_end(const MunitParameter *params, void *data) {
     size_t n = 2;
 
     mpz_t b;
-    mpz_init_set_ui(b, 1000);
+    mpz_init_set_ui(b, 10);
     cfe_mat f;
     cfe_mat_init(&f, n, n);
     cfe_uniform_sample_mat(&f, b);
@@ -104,7 +106,31 @@ MunitResult test_sgp_end_to_end(const MunitParameter *params, void *data) {
     cfe_sgp_cipher_init(&ciphertext, &s);
     cfe_sgp_encrypt(&ciphertext, &s, &x, &y, &msk);
 
-    cfe_sgp_derive_key(&msk, &f);
+    ECP2_BN254 key;
+    cfe_sgp_derive_key(&key, &msk, &f);
+
+    cfe_sgp_decrypt(&ciphertext, &key, &f);
+
+    mpz_t(xy);
+    mpz_init(xy);
+    cfe_vec_dot(xy, &x, &y);
+
+    gmp_printf ("xy %Zd\n", xy);
+
+    ECP_BN254 g1;
+    ECP_BN254_generator(&g1);
+    ECP2_BN254 g2;
+    ECP2_BN254_generator(&g2);
+
+    FP12_BN254 gt, r;
+    PAIR_BN254_ate(&gt, &g1, &g2);
+    PAIR_BN254_fexp(&gt);
+
+    BIG_256_56 xy_b;
+    BIG_256_56_from_mpz(xy_b, xy);
+
+    FP12_BN254_pow(&r, &gt, xy_b);
+    FP12_BN254_output(&r);
 
     munit_assert(err == 0);
 

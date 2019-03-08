@@ -89,12 +89,10 @@ void cfe_sgp_generate_master_key(cfe_sgp_sec_key *msk, cfe_sgp *sgp) {
     msk->t = (cfe_vec *) cfe_malloc(sizeof(cfe_vec));
 
     cfe_vec_inits(sgp->n, msk->s, msk->t, NULL);
-    cfe_vec_print(msk->s);
 
     cfe_uniform_sample_vec(msk->s, sgp->bound);
     cfe_uniform_sample_vec(msk->t, sgp->bound);
 
-    cfe_vec_print(msk->s);
 }
 
 // cfe_extract_submatrix returns a matrix obtained from m by removing row i and column j.
@@ -233,7 +231,11 @@ void cfe_sgp_derive_key(ECP2_BN254 *key, cfe_sgp_sec_key *msk, cfe_mat *f) {
 }
 
 void cfe_sgp_decrypt(cfe_sgp_cipher *cipher, ECP2_BN254 *key, cfe_mat *f) {
+    printf("\ndecrypt\n");
+
     FP12_BN254 prod;
+
+    FP12_BN254_one(&prod);
     PAIR_BN254_ate(&prod, &(cipher->g1MulGamma), key);
     PAIR_BN254_fexp(&prod);
 
@@ -251,44 +253,87 @@ void cfe_sgp_decrypt(cfe_sgp_cipher *cipher, ECP2_BN254 *key, cfe_mat *f) {
                 t2 = cipher->b[j].vec[0];
                 t4 = cipher->b[j].vec[1];
 
+                printf("\n----!!!!!!!!!!-----\n");
+                ECP_BN254_output(&t1);
+                ECP2_BN254_output(&t2);
+
+                // t1 is Infinity, t2 is not
+                // t3 is Infinity, t4 is not (sometimes is t4)
+
                 FP12_BN254 p1, p2, r;
+
                 PAIR_BN254_ate(&p1, &t1, &t2);
                 PAIR_BN254_fexp(&p1);
+
                 PAIR_BN254_ate(&p2, &t3, &t4);
                 PAIR_BN254_fexp(&p2);
+
+
+                //FP12_BN254_output(&p2);
+
+                //ECP2_BN254_output(&t2);
+                //FP12_BN254_output(&p1);
+                //FP12_BN254_output(&p2);
+
+
+                //printf("\n22222222222222222222\n");
+                //FP12_BN254_output(&p1);
+                // p1 is zero here
 
                 FP12_BN254_mul(&p1, &p2); // p1 stores the multiplied value
 
                 BIG_256_56 el_b;
                 BIG_256_56_from_mpz(el_b, el);
 
+                // p1 is zero here
+                // p2 is zero sometimes
+
                 // TODO: do we need to handle specially el which are < 0?
-                FP12_BN254_pow(&r, &p1, el_b);
+                FP12_BN254_pow(&r, &p1, &el_b);
 
                 FP12_BN254_mul(&prod, &r); // prod stores the multiplied value
+                //FP12_BN254_mul(&prod, &p1); // prod stores the multiplied value
+
+                //printf("\n----@----\n");
+                //FP12_BN254_output(&prod);
             }
         }
     }
 
+    printf("\n!!!!1111!!!!!!!!!!!!!!!!!!\n");
     FP12_BN254_output(&prod);
 
-    printf("\n-------------------\n");
 }
 
 cfe_error cfe_sgp_encrypt(cfe_sgp_cipher *ciphertext, cfe_sgp *s, cfe_vec *x, cfe_vec *y, cfe_sgp_sec_key *msk) {
+    printf("\nencrypt\n");
     mpz_t gamma;
     mpz_init(gamma);
-    cfe_uniform_sample(gamma, s->mod);
+
+    // debug:
+    //cfe_uniform_sample(gamma, s->mod);
+    mpz_set_ui(gamma, 1);
 
     cfe_mat W;
     cfe_mat_init(&W, 2, 2);
-    cfe_uniform_sample_mat(&W, s->mod);
+
+    // debug
+    //cfe_uniform_sample_mat(&W, s->mod);
+    mpz_t bla, tra;
+    mpz_inits(bla, tra, NULL);
+    mpz_set_ui(bla, 2);
+    mpz_set_ui(tra, 3);
+    cfe_mat_set(&W, bla, 0, 0);
+    cfe_mat_set(&W, tra, 0, 1);
+    cfe_mat_set(&W, tra, 1, 0);
+    cfe_mat_set(&W, bla, 1, 1);
 
     //gmp_printf ("tra %Zd\n", det);
 
     cfe_mat W_inv;
     cfe_mat_init(&W_inv, W.rows, W.cols);
     cfe_inverse_mod(&W, &W_inv, s->mod);
+    printf("\nW_inv\n");
     cfe_mat_print(&W_inv);
 
     cfe_mat check;
@@ -299,7 +344,6 @@ cfe_error cfe_sgp_encrypt(cfe_sgp_cipher *ciphertext, cfe_sgp *s, cfe_vec *x, cf
     cfe_mat_init(&check_mod, W.rows, W.cols);
 
     cfe_mat_mod(&check_mod, &check, s->mod);
-
     cfe_mat_print(&check_mod);
 
     cfe_mat W_inv_tr;
@@ -317,6 +361,9 @@ cfe_error cfe_sgp_encrypt(cfe_sgp_cipher *ciphertext, cfe_sgp *s, cfe_vec *x, cf
     mpz_t minus;
     mpz_init_set_si(minus, -1);
 
+    //printf("\n??????????????????????????\n");
+    //cfe_mat_print(&W_inv_tr);
+
     for (int i = 0; i < s->n; i++) {
         cfe_vec_get(x_i, x, i);
         cfe_vec_get(s_i, msk->s, i);
@@ -328,12 +375,22 @@ cfe_error cfe_sgp_encrypt(cfe_sgp_cipher *ciphertext, cfe_sgp *s, cfe_vec *x, cf
         cfe_mat_mul_vec(&v_i, &W_inv_tr, &v);
         cfe_vec_mod(&v_i, &v_i, s->mod);
 
+        printf("\n?????????????11111111?????????????\n");
+        cfe_vec_print(&v);
+        cfe_vec_print(&v_i);
+
+
         cfe_vec_G1 g1;
         cfe_vec_G1_init(&g1, 2);
         cfe_vec_mul_G1(&g1, &v_i);
         ciphertext->a[i] = g1;
 
-        printf("\n----------------------\n");
+
+        // debug start
+        //printf("\n----+++++++++++++++++++++-----\n");
+        //ECP_BN254_output(&g1.vec[0]);
+        //ECP2_BN254_output(&g1.vec[1]);
+        // debug end
 
 
         cfe_vec_get(y_i, y, i);
@@ -345,6 +402,10 @@ cfe_error cfe_sgp_encrypt(cfe_sgp_cipher *ciphertext, cfe_sgp *s, cfe_vec *x, cf
         cfe_mat_mul_vec(&v_i, &W, &v);
         cfe_vec_mod(&v_i, &v_i, s->mod);
 
+        printf("\n?????????????22222?????????????\n");
+        cfe_vec_print(&v);
+        cfe_vec_print(&v_i);
+
         cfe_vec_G2 g2;
         cfe_vec_G2_init(&g2, 2);
         cfe_vec_mul_G2(&g2, &v_i);
@@ -353,6 +414,58 @@ cfe_error cfe_sgp_encrypt(cfe_sgp_cipher *ciphertext, cfe_sgp *s, cfe_vec *x, cf
     BIG_256_56 gamma_b;
     BIG_256_56_from_mpz(gamma_b, gamma);
     ECP_BN254_mul(&(ciphertext->g1MulGamma), gamma_b);
+
+
+    FP12_BN254 debug;
+    FP12_BN254_one(&debug);
+    for (int i = 0; i < s->n; i++) {
+        for (int j = 0; j < s->n; j++) {
+            ECP_BN254 t1, t3;
+            t1 = ciphertext->a[i].vec[0];
+            t3 = ciphertext->a[i].vec[1];
+            ECP2_BN254 t2, t4;
+            t2 = ciphertext->b[j].vec[0];
+            t4 = ciphertext->b[j].vec[1];
+
+
+            //PAIR_BN254_ate(&p1, &(ciphertext->a[i].vec[0]), &(ciphertext->b[j].vec[0]));
+            //PAIR_BN254_fexp(&p1);
+
+            FP12_BN254 p1, p2, r;
+            PAIR_BN254_ate(&p1, &t1, &t2);
+            PAIR_BN254_fexp(&p1);
+
+            //PAIR_BN254_ate(&p2, &(ciphertext->a[i].vec[1]), &(ciphertext->b[j].vec[1]));
+            //PAIR_BN254_fexp(&p2);
+
+            //PAIR_BN254_ate(&p1, &(ciphertext->a[i].vec[0]), &(ciphertext->b[j].vec[0]));
+            //PAIR_BN254_fexp(&p1);
+
+            PAIR_BN254_ate(&p2, &t3, &t4);
+            PAIR_BN254_fexp(&p2);
+
+            //printf("\n--------------!!----------------\n");
+            //FP12_BN254_output(&p2);
+
+            //ECP_BN254_output(&(ciphertext->a[i].vec[0]));
+            //ECP_BN254_output(&t1);
+            //ECP2_BN254_output(&(ciphertext->b[j].vec[0]));
+            //FP12_BN254_output(&p1);
+            //FP12_BN254_output(&p2);
+
+            FP12_BN254_mul(&p1, &p2);
+
+            //printf("\n--------\n");
+            FP12_BN254_mul(&debug, &p1);
+            //FP12_BN254_output(&debug);
+        }
+
+    }
+
+    //printf("\n+++++++++++++++\n");
+    //FP12_BN254_output(&debug);
+
+    printf("\n end encrypt \n");
 
     return 0;
 }

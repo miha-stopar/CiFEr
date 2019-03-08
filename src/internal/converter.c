@@ -48,5 +48,5 @@ void BIG_256_56_from_mpz(BIG_256_56 a, mpz_t b) {
 }
 
 void mpz_from_BIG_256_56(mpz_t b, BIG_256_56 a) {
-    mpz_import(b, (MODBYTES_256_56 * 8) / BASEBITS_256_56, -1, sizeof(a[0]), 0, (8 * sizeof(a[0])) - BASEBITS_256_56, a);
+    mpz_import(b, NLEN_256_56, -1, sizeof(a[0]), 0, (8 * sizeof(a[0])) - BASEBITS_256_56, a);
 }
